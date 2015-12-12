@@ -42,6 +42,7 @@ sealed trait Stream[+A] {
 
   def exists(p: A => Boolean): Boolean = this match {
     case Cons(h, t) => p(h()) || t().exists(p)
+    case Empty => false
   }
 
   def foldRight[B](z: => B)(f: (A, => B) => B): B = this match {
@@ -115,6 +116,23 @@ sealed trait Stream[+A] {
 
   def startsWith2[A](s: Stream[A]): Boolean =
     zipAll(s).takeWhile(_._2.nonEmpty).forAll(tupled(_ == _))
+
+  def tails: Stream[Stream[A]] =
+    Ch5.unfold(this)(s => s match {
+      case Empty => None
+      case Cons(_, t) => Some((s, t()))
+    })
+
+  def hasSubsequence[A](s: Stream[A]): Boolean =
+    tails exists (_ startsWith s)
+
+  def scanRight[B](z: B)(f: (A, => B) => B): Stream[B] =
+    this.foldRight(cons(z, empty))((a, b) => {
+      lazy val b2 = b
+      b2 match { case Cons(h, _) => cons(f(a, h()), b) }
+    })
+
+  def nth(n: Int): A = drop(n-1).take(1).toList.head
 }
 
 case object Empty extends Stream[Nothing]
@@ -138,6 +156,11 @@ object Ch5 {
   def naturals: Stream[Int] = naturals(1)
 
   def fibs(a: Int = 0, b: Int = 1): Stream[Int] = cons(a, fibs(b, a + b))
+
+  def factorials: Stream[Int] =
+    unfold((1, 1))({case (n, f) => Some((f * n, (n + 1, f * n)))})
+
+  def factorial(n: Int): Int = factorials.nth(n)
 
   def unfold[A, S](z: S)(f: S => Option[(A, S)]): Stream[A] =
     f(z) match {
